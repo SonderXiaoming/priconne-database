@@ -124,7 +124,10 @@ jobs:
         run: |
           while IFS=$'\t' read -r tag filename region version date; do
             if gh release view "$tag" >/dev/null 2>&1; then
-              echo "历史版本已存在：$tag"
+              echo "同版本数据库内容已修正，替换 Release 资产：$tag"
+              gh release upload "$tag" \
+                ".cache/releases/$filename" \
+                --clobber
               continue
             fi
             gh release create "$tag" \

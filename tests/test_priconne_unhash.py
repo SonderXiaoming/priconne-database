@@ -32,6 +32,183 @@ def make_database(path: Path, table_name: str, column_names: tuple[str, str]) ->
 
 
 class UnhashTests(unittest.TestCase):
+    def test_prepare_jp_database_keeps_canonical_second_mirror(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source.db"
+            output = root / "canonical.db"
+            with closing(sqlite3.connect(source)) as db:
+                for name, value in (
+                    ("v1_" + "a" * 64, "old-a"),
+                    ("v1_" + "b" * 64, "old-b"),
+                    ("v1_" + "c" * 64, "new-a"),
+                    ("v1_" + "d" * 64, "new-b"),
+                ):
+                    db.execute(f'CREATE TABLE "{name}" (id INTEGER PRIMARY KEY, value TEXT)')
+                    db.execute(f'INSERT INTO "{name}" VALUES (1, ?)', (value,))
+                db.commit()
+
+            stats = MODULE.prepare_jp_canonical_database(source, output)
+
+            self.assertEqual(stats["mirrored_schema"], 1)
+            self.assertEqual(stats["discarded_tables"], 2)
+            self.assertEqual(
+                [table.name for table in MODULE.inspect_database(output)],
+                ["v1_" + "c" * 64, "v1_" + "d" * 64],
+            )
+
+    def test_same_version_positional_match_recovers_repeated_zero_slots(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            reference = root / "reference.db"
+            target = root / "target.db"
+            with closing(sqlite3.connect(reference)) as db:
+                db.execute(
+                    'CREATE TABLE skill_data (skill_id INTEGER PRIMARY KEY, '
+                    'action_19 INTEGER, action_20 INTEGER)'
+                )
+                db.executemany(
+                    'INSERT INTO skill_data VALUES (?, 0, 0)', [(1,), (2,), (3,)]
+                )
+                db.commit()
+            table_hash = "v1_" + "e" * 64
+            column_hashes = [character * 64 for character in "fgh"]
+            with closing(sqlite3.connect(target)) as db:
+                db.execute(
+                    f'CREATE TABLE "{table_hash}" ('
+                    f'"{column_hashes[0]}" INTEGER PRIMARY KEY, '
+                    f'"{column_hashes[1]}" INTEGER, "{column_hashes[2]}" INTEGER)'
+                )
+                db.executemany(
+                    f'INSERT INTO "{table_hash}" VALUES (?, 0, 0)', [(1,), (2,), (3,)]
+                )
+                db.commit()
+
+            transferred = MODULE.match_columns(
+                reference,
+                MODULE.inspect_database(reference)[0],
+                target,
+                MODULE.inspect_database(target)[0],
+                prefer_position=True,
+            )
+
+            self.assertEqual(
+                list(transferred.values()), ["skill_id", "action_19", "action_20"]
+            )
+
+    def test_lower_priority_reference_fills_unmatched_columns(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            preferred = root / "preferred.db"
+            fallback = root / "fallback.db"
+            target = root / "target.db"
+            table_hash = "v1_" + "1" * 64
+            columns = [character * 64 for character in "234"]
+            for path, name_value, name_column in (
+                (preferred, "Hiyori", "unit_name_jp"),
+                (fallback, "ヒヨリ", "unit_name"),
+            ):
+                with closing(sqlite3.connect(path)) as db:
+                    db.execute(
+                        f'CREATE TABLE unit_data (unit_id INTEGER PRIMARY KEY, '
+                        f'{name_column} TEXT, rarity INTEGER)'
+                    )
+                    db.executemany(
+                        'INSERT INTO unit_data VALUES (?, ?, ?)',
+                        [(1, name_value, 1), (2, name_value, 2), (3, name_value, 3)],
+                    )
+                    db.commit()
+            with closing(sqlite3.connect(target)) as db:
+                db.execute(
+                    f'CREATE TABLE "{table_hash}" ('
+                    f'"{columns[0]}" INTEGER PRIMARY KEY, '
+                    f'"{columns[1]}" TEXT, "{columns[2]}" INTEGER)'
+                )
+                db.executemany(
+                    f'INSERT INTO "{table_hash}" VALUES (?, ?, ?)',
+                    [(1, "ヒヨリ", 1), (2, "ヒヨリ", 2), (3, "ヒヨリ", 3)],
+                )
+                db.commit()
+
+            mapping = MODULE.resolve_mapping(
+                target,
+                [],
+                [("roboninon", preferred, 260), ("previous", fallback, 130)],
+            )
+
+            recovered = mapping["tables"][table_hash]["columns"]
+            self.assertEqual(recovered[columns[1]], "unit_name")
+            self.assertEqual(recovered[columns[2]], "rarity")
+
+    def test_previous_mapping_cannot_downgrade_same_version_name_score(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            pcr_tool = root / "pcr_tool.db"
+            roboninon = root / "roboninon.db"
+            previous_raw = root / "previous_raw.db"
+            previous_mapping = root / "mapping.json"
+            target = root / "target.db"
+            table_hash = "v1_" + "5" * 64
+            old_table_hash = "v1_" + "6" * 64
+            target_columns = [character * 64 for character in "789"]
+            old_columns = [character * 64 for character in "abc"]
+
+            for path, table, columns in (
+                (target, table_hash, target_columns),
+                (previous_raw, old_table_hash, old_columns),
+            ):
+                with closing(sqlite3.connect(path)) as db:
+                    db.execute(
+                        f'CREATE TABLE "{table}" ('
+                        f'"{columns[0]}" INTEGER PRIMARY KEY, '
+                        f'"{columns[1]}" TEXT, "{columns[2]}" INTEGER)'
+                    )
+                    db.executemany(
+                        f'INSERT INTO "{table}" VALUES (?, ?, ?)',
+                        [(1, "ヒヨリ", 1), (2, "ヒヨリ", 2), (3, "ヒヨリ", 3)],
+                    )
+                    db.commit()
+            for path, name_column in (
+                (pcr_tool, "unit_name"),
+                (roboninon, "unit_name_jp"),
+            ):
+                with closing(sqlite3.connect(path)) as db:
+                    db.execute(
+                        f'CREATE TABLE unit_data (unit_id INTEGER PRIMARY KEY, '
+                        f'{name_column} TEXT, rarity INTEGER)'
+                    )
+                    db.executemany(
+                        'INSERT INTO unit_data VALUES (?, ?, ?)',
+                        [(1, "ヒヨリ", 1), (2, "ヒヨリ", 2), (3, "ヒヨリ", 3)],
+                    )
+                    db.commit()
+            previous_mapping.write_text(
+                json.dumps(
+                    {
+                        "tables": {
+                            old_table_hash: {
+                                "name": "unit_data",
+                                "columns": dict(
+                                    zip(old_columns, ["unit_id", "unit_name", "rarity"])
+                                ),
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            mapping = MODULE.resolve_mapping(
+                target,
+                [],
+                [("pcr-tool", pcr_tool, 320), ("roboninon", roboninon, 260)],
+                previous_db=previous_raw,
+                previous_mapping_path=previous_mapping,
+            )
+
+            recovered = mapping["tables"][table_hash]["columns"]
+            self.assertEqual(recovered[target_columns[1]], "unit_name")
+
     def test_cn_headers_and_discovery_are_ios_only(self):
         headers = MODULE.cn_request_headers("11.7.2")
         self.assertEqual(headers["PLATFORM"], "1")

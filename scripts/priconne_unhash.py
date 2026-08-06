@@ -29,6 +29,8 @@ from typing import Any, Iterable
 
 
 JP_EXTERNAL_URL = "https://roboninon.win/db/download?compressed=true"
+JP_PCR_TOOL_DATABASE_URL = "https://wthee.xyz/db/redive_jp.db.br"
+JP_PCR_TOOL_VERSION_URL = "https://wthee.xyz/pcr/api/v1/db/info/v2"
 JP_IOS_CDN = "https://prd-priconne-redive.akamaized.net/"
 JP_IOS_BASELINE_VERSION = 10070110
 JP_CONESHELL = (
@@ -51,7 +53,7 @@ CN_IOS_APPSTORE_URL = "https://itunes.apple.com/lookup?id=1423525213&country=cn"
 CN_IOS_BASELINE_VERSION = "202607312107"
 
 HASHED_TABLE_PREFIX = "v1_"
-MAPPING_FORMAT = 1
+MAPPING_FORMAT = 2
 
 
 @dataclass(frozen=True)
@@ -258,6 +260,65 @@ def validate_database(path: Path, require_readable: bool = False) -> dict[str, i
     }
 
 
+def validate_jp_developer_schema(path: Path) -> None:
+    """Ensure the recovered JP DB satisfies the public developer contract."""
+
+    required = {
+        "unit_data": {"unit_name"},
+        "unit_profile": {"unit_name"},
+        "enemy_parameter": {"name"},
+        "actual_unit_background": {"unit_name"},
+        "skill_data": {
+            "name",
+            "description",
+            "boss_ub_cool_time",
+            "action_20",
+            "depend_action_20",
+        },
+        "chara_story_status": {
+            "status_type_3",
+            "status_type_5",
+            "status_rate_3",
+            "status_rate_5",
+            "chara_id_8",
+            "chara_id_20",
+        },
+        "unit_skill_data": {
+            "union_burst",
+            "main_skill_1",
+            "main_skill_10",
+            "sp_skill_5",
+        },
+    }
+    missing: list[str] = []
+    with closing(sqlite_connect(path)) as connection:
+        tables = {
+            row[0]
+            for row in connection.execute(
+                "SELECT name FROM sqlite_schema WHERE type='table'"
+            )
+        }
+        for table, expected_columns in required.items():
+            if table not in tables:
+                missing.append(table)
+                continue
+            actual_columns = {
+                row[1]
+                for row in connection.execute(
+                    f"PRAGMA table_info({quote_identifier(table)})"
+                )
+            }
+            missing.extend(
+                f"{table}.{column}"
+                for column in sorted(expected_columns - actual_columns)
+            )
+    if missing:
+        raise RuntimeError(
+            "recovered JP schema is missing required developer fields: "
+            + ", ".join(missing)
+        )
+
+
 def decrypt_jp_cdb(
     source: Path,
     destination: Path,
@@ -331,6 +392,52 @@ def download_jp_readable_reference(
         )
     decompress_brotli(archive, database)
     return validate_database(database, require_readable=True)
+
+
+def download_jp_pcr_tool_reference(
+    version_url: str,
+    database_url: str,
+    archive: Path,
+    database: Path,
+    official_version: int,
+    official_md5: str,
+) -> tuple[dict[str, int], dict[str, Any]]:
+    """Download pcr-tool only when it describes the exact official JP asset."""
+
+    response = post_json(
+        version_url,
+        {"regionCode": "jp"},
+        {
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+            "User-Agent": "priconne-tw-unhash-action/1.0",
+        },
+    )
+    if response.get("status") != 0 or not isinstance(response.get("data"), dict):
+        raise RuntimeError(f"pcr-tool returned an invalid version response: {response!r}")
+    metadata = response["data"]
+    reference_version = int(metadata.get("truthVersion", 0))
+    reference_hash = str(metadata.get("hash", "")).lower()
+    if reference_version != official_version:
+        raise RuntimeError(
+            f"pcr-tool JP version {reference_version} does not match official "
+            f"iOS version {official_version}"
+        )
+    if reference_hash != official_md5.lower():
+        raise RuntimeError(
+            f"pcr-tool JP hash {reference_hash} does not match official "
+            f"asset MD5 {official_md5.lower()}"
+        )
+
+    download(database_url, archive)
+    decompress_brotli(archive, database)
+    stats = validate_database(database, require_readable=True)
+    required_tables = {"unit_data", "skill_data", "chara_story_status", "unit_skill_data"}
+    available_tables = {table.name for table in inspect_database(database)}
+    missing = sorted(required_tables - available_tables)
+    if missing:
+        raise RuntimeError(f"pcr-tool partial JP database is missing: {', '.join(missing)}")
+    return stats, metadata
 
 
 def cn_request_headers(app_version: str) -> dict[str, str]:
@@ -690,6 +797,55 @@ def inspect_database(path: Path) -> list[Table]:
     return result
 
 
+def prepare_jp_canonical_database(source: Path, destination: Path) -> dict[str, int]:
+    """Keep the canonical second schema when an official JP DB contains mirrors."""
+
+    tables = inspect_database(source)
+    mirrored = False
+    discarded: list[Table] = []
+    if len(tables) % 2 == 0 and tables:
+        halfway = len(tables) // 2
+        first, second = tables[:halfway], tables[halfway:]
+        mirrored = all(
+            (
+                len(left.columns),
+                left.type_counts,
+                left.pk_count,
+                left.row_count,
+            )
+            == (
+                len(right.columns),
+                right.type_counts,
+                right.pk_count,
+                right.row_count,
+            )
+            for left, right in zip(first, second)
+        )
+        if mirrored:
+            discarded = first
+
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_suffix(destination.suffix + ".tmp")
+    shutil.copy2(source, temporary)
+    try:
+        if discarded:
+            with closing(sqlite_connect(temporary, readonly=False)) as connection:
+                for table in discarded:
+                    connection.execute(f"DROP TABLE {quote_identifier(table.name)}")
+                connection.commit()
+                connection.execute("VACUUM")
+        stats = validate_database(temporary)
+        os.replace(temporary, destination)
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
+    return {
+        **stats,
+        "mirrored_schema": int(mirrored),
+        "discarded_tables": len(discarded),
+    }
+
+
 def table_similarity(left: Table, right: Table) -> float:
     left_count = len(left.columns)
     right_count = len(right.columns)
@@ -804,11 +960,18 @@ def sample_rows(
     return rows
 
 
+def is_placeholder_name(name: str) -> bool:
+    """Reject reference placeholders that are not recovered schema names."""
+
+    return bool(re.fullmatch(r"unknown(?:_\d+)?", name, flags=re.IGNORECASE))
+
+
 def match_columns(
     source_db: Path,
     source_table: Table,
     target_db: Path,
     target_table: Table,
+    prefer_position: bool = False,
 ) -> dict[str, str]:
     """Match shuffled columns by PK metadata and values on shared records."""
 
@@ -821,6 +984,43 @@ def match_columns(
         (column for column in target_table.columns if column.pk_order),
         key=lambda item: item.pk_order,
     )
+
+    # pcr-tool renames a same-version subset without changing column order. Its
+    # version endpoint is checked against both the official version and asset
+    # MD5 before this mode is enabled. Positional transfer is therefore able to
+    # recover repeated zero-valued skill/status slots that value matching cannot
+    # distinguish.
+    if (
+        prefer_position
+        and len(source_table.columns) == len(target_table.columns)
+        and source_table.row_count == target_table.row_count
+        and all(
+            source.declared_type == target.declared_type
+            and source.pk_order == target.pk_order
+            for source, target in zip(source_table.columns, target_table.columns)
+        )
+    ):
+        positional_matches = True
+        if source_table.row_count:
+            if not source_pk or len(source_pk) != len(target_pk):
+                positional_matches = False
+            else:
+                with closing(sqlite_connect(source_db)) as source_connection, closing(
+                    sqlite_connect(target_db)
+                ) as target_connection:
+                    source_rows = sample_rows(source_connection, source_table, source_pk)
+                    target_rows = sample_rows(target_connection, target_table, target_pk)
+                shared_keys = source_rows.keys() & target_rows.keys()
+                positional_matches = bool(shared_keys) and all(
+                    source_rows[key] == target_rows[key] for key in shared_keys
+                )
+        if positional_matches:
+            return {
+                target.name: source.name
+                for source, target in zip(source_table.columns, target_table.columns)
+                if not is_placeholder_name(source.name)
+            }
+
     if len(source_pk) == len(target_pk):
         for source_column, target_column in zip(source_pk, target_pk):
             mapping[target_column.name] = source_column.name
@@ -1078,9 +1278,19 @@ def resolve_mapping(
             if hashed_column != "--table_name":
                 column_votes[(hashed_column, plain_column)] = (300.0, direct_source)
 
-        # The best reference normally contains every transferable column. Reading
-        # every agreeing database again is expensive and adds little confidence.
-        for proposal in sorted(group, key=lambda item: item.score, reverse=True)[:1]:
+        # References are complementary. A high-priority partial database may
+        # recover exact Japanese names while a lower-priority full database or
+        # the previous JP build can still fill columns it does not contain.
+        seen_references: set[tuple[Path | None, str | None, str]] = set()
+        for proposal in sorted(group, key=lambda item: item.score, reverse=True):
+            reference_key = (
+                proposal.source_db,
+                proposal.source_table,
+                proposal.source,
+            )
+            if reference_key in seen_references:
+                continue
+            seen_references.add(reference_key)
             if proposal.source == "previous" and previous_db and proposal.source_table:
                 source_table = previous_lookup.get(proposal.source_table)
                 source_known = previous_tables.get(proposal.source_table, {})
@@ -1092,19 +1302,30 @@ def resolve_mapping(
                     for new_hash, old_hash in transferred.items():
                         plain_column = old_columns.get(old_hash)
                         if plain_column:
-                            column_votes[(new_hash, plain_column)] = (
-                                proposal.score,
-                                "previous",
-                            )
+                            key = (new_hash, plain_column)
+                            if (
+                                key not in column_votes
+                                or column_votes[key][0] < proposal.score
+                            ):
+                                column_votes[key] = (
+                                    proposal.score,
+                                    "previous",
+                                )
             elif proposal.source_db and proposal.source_table:
                 source_table = reference_tables[proposal.source_db].get(
                     proposal.source_table
                 )
                 if source_table:
                     transferred = match_columns(
-                        proposal.source_db, source_table, target_db, target_table
+                        proposal.source_db,
+                        source_table,
+                        target_db,
+                        target_table,
+                        prefer_position=proposal.source == "pcr-tool",
                     )
                     for hashed_column, plain_column in transferred.items():
+                        if is_placeholder_name(plain_column):
+                            continue
                         key = (hashed_column, plain_column)
                         if key not in column_votes or column_votes[key][0] < proposal.score:
                             column_votes[key] = (proposal.score, proposal.source)
@@ -1422,6 +1643,7 @@ def update_jp_command(args: argparse.Namespace) -> int:
     raw_db = cache_dir / "master_jp_latest_raw.db"
     previous_raw_db = cache_dir / "master_jp_previous_raw.db"
     current_version = json_load(version_path, {}) or {}
+    current_mapping = json_load(mapping_path, {}) or {}
     build = discover_jp_build(current_version)
     official_version = int(build["version"])
     source_metadata = {
@@ -1432,7 +1654,11 @@ def update_jp_command(args: argparse.Namespace) -> int:
         "platform": "iOS",
         "cdn": build["cdn"],
         "source": "official-ios-cdn+coneshell",
-        "name_reference_priority": ["roboninon", "jp-previous-readable"],
+        "name_reference_priority": [
+            "pcr-tool-same-version",
+            "roboninon",
+            "jp-previous-readable",
+        ],
     }
     if (
         not args.force
@@ -1441,6 +1667,7 @@ def update_jp_command(args: argparse.Namespace) -> int:
         and output_db.exists()
         and raw_db.exists()
         and mapping_path.exists()
+        and current_mapping.get("format") == MAPPING_FORMAT
     ):
         log(f"JP database is already current: {official_version}")
         return 0
@@ -1459,7 +1686,32 @@ def update_jp_command(args: argparse.Namespace) -> int:
         log(f"Downloading JP database {official_version} from official iOS CDN")
         download_standard_ios_asset(build, official_asset)
 
-    # roboninon has the highest priority for both name recovery and fallback.
+    # pcr-tool is a partial same-version schema reference. It is accepted only
+    # when its reported official asset MD5 matches this build.
+    pcr_tool_archive = cache_dir / "pcr_tool_jp.db.br"
+    pcr_tool_database = cache_dir / "pcr_tool_jp.db"
+    pcr_tool_stats: dict[str, int] | None = None
+    pcr_tool_error: Exception | None = None
+    try:
+        log("Downloading the highest-priority same-version JP names from pcr-tool")
+        pcr_tool_stats, pcr_tool_metadata = download_jp_pcr_tool_reference(
+            args.pcr_tool_version_url,
+            args.pcr_tool_database_url,
+            pcr_tool_archive,
+            pcr_tool_database,
+            official_version,
+            expected_md5,
+        )
+        source_metadata["pcr_tool"] = {
+            "truth_version": pcr_tool_metadata.get("truthVersion"),
+            "asset_md5": pcr_tool_metadata.get("hash"),
+            "updated_at": pcr_tool_metadata.get("time"),
+        }
+    except Exception as error:
+        pcr_tool_error = error
+        log(f"JP pcr-tool reference unavailable or invalid: {error}")
+
+    # roboninon remains the broad readable reference and the last-resort output.
     external_archive = cache_dir / "jp_external.db.br"
     external_database = cache_dir / "jp_external.db"
     external_stats: dict[str, int] | None = None
@@ -1484,19 +1736,29 @@ def update_jp_command(args: argparse.Namespace) -> int:
         if previous_raw_db.exists() and previous_mapping_path is not None
         else None
     )
+    candidate_full = cache_dir / "master_jp_candidate_full.db"
     candidate_raw = cache_dir / "master_jp_candidate_raw.db"
 
     try:
         log("Decrypting the official JP CDB with Coneshell")
-        decrypt_jp_cdb(official_asset, candidate_raw, args.coneshell)
+        decrypt_jp_cdb(official_asset, candidate_full, args.coneshell)
+        canonical_stats = prepare_jp_canonical_database(candidate_full, candidate_raw)
+        candidate_full.unlink(missing_ok=True)
+        if canonical_stats["mirrored_schema"]:
+            log(
+                "Detected mirrored official JP schemas; using the canonical second "
+                f"set ({canonical_stats['tables']} tables)"
+            )
 
         references: list[tuple[str, Path, int]] = []
+        if pcr_tool_stats is not None:
+            references.append(("pcr-tool", pcr_tool_database, 320))
         if external_stats is not None:
             references.append(("roboninon", external_database, 260))
         if output_db.exists():
             references.append(("jp-previous-readable", output_db, 130))
 
-        log("Resolving JP names (roboninon first, previous JP database second)")
+        log("Resolving JP names (pcr-tool, roboninon, then previous JP database)")
         mapping = resolve_mapping(
             target_db=candidate_raw,
             rainbow_paths=[],
@@ -1507,6 +1769,8 @@ def update_jp_command(args: argparse.Namespace) -> int:
         )
         rename = deobfuscate_database(candidate_raw, output_db, mapping)
         validate_database(output_db)
+        if pcr_tool_stats is not None:
+            validate_jp_developer_schema(output_db)
         os.replace(candidate_raw, raw_db)
         json_write(mapping_path, mapping)
         json_write(version_path, source_metadata)
@@ -1515,6 +1779,7 @@ def update_jp_command(args: argparse.Namespace) -> int:
         log(report)
         return 0
     except Exception as official_error:
+        candidate_full.unlink(missing_ok=True)
         candidate_raw.unlink(missing_ok=True)
         log(f"Official JP CDB recovery failed: {official_error}")
 
@@ -1539,7 +1804,7 @@ def update_jp_command(args: argparse.Namespace) -> int:
             return 0
         raise RuntimeError(
             "no readable JP database is available; "
-            f"roboninon error: {external_error}"
+            f"pcr-tool error: {pcr_tool_error}; roboninon error: {external_error}"
         ) from official_error
 
 
@@ -1699,6 +1964,12 @@ def make_parser() -> argparse.ArgumentParser:
     update_jp.add_argument("--output-dir", type=Path, default=Path("data"))
     update_jp.add_argument("--cache-dir", type=Path, default=Path(".cache"))
     update_jp.add_argument("--external-url", default=JP_EXTERNAL_URL)
+    update_jp.add_argument(
+        "--pcr-tool-database-url", default=JP_PCR_TOOL_DATABASE_URL
+    )
+    update_jp.add_argument(
+        "--pcr-tool-version-url", default=JP_PCR_TOOL_VERSION_URL
+    )
     update_jp.add_argument("--coneshell", type=Path, default=JP_CONESHELL)
     update_jp.add_argument("--force", action="store_true")
     update_jp.set_defaults(function=update_jp_command)

@@ -3,9 +3,15 @@
   "cdn": "https://prd-priconne-redive.akamaized.net/",
   "hash": "dcba3ae4d435eb72",
   "name_reference_priority": [
+    "pcr-tool-same-version",
     "roboninon",
     "jp-previous-readable"
   ],
+  "pcr_tool": {
+    "asset_md5": "eb1d239dca1ceba1f1a7f8239adb6939",
+    "truth_version": "10070110",
+    "updated_at": "2026-08-03 16:31:45.606013"
+  },
   "platform": "iOS",
   "source": "official-ios-cdn+coneshell",
   "storage_hash": "dcba3ae4d435eb72",

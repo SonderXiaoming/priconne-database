@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import shutil
@@ -33,6 +34,14 @@ def write_json(path: Path, value: Any) -> None:
     os.replace(temporary, path)
 
 
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def update_history(root: Path, release_date: str | None = None) -> list[dict[str, str]]:
     history_path = root / "data" / "history.json"
     history = read_json(
@@ -58,6 +67,7 @@ def update_history(root: Path, release_date: str | None = None) -> list[dict[str
         version = str(version_document.get("version", ""))
         if not database.exists() or not version:
             continue
+        checksum = sha256_file(database)
         entry = known.get((region, version))
         if entry is None:
             tag = f"database-{region}-{version}"
@@ -68,6 +78,7 @@ def update_history(root: Path, release_date: str | None = None) -> list[dict[str
                 "date": release_date,
                 "tag": tag,
                 "filename": filename,
+                "sha256": checksum,
                 "url": (
                     f"https://github.com/{repository}/releases/download/"
                     f"{quote(tag)}/{quote(filename)}"
@@ -75,9 +86,13 @@ def update_history(root: Path, release_date: str | None = None) -> list[dict[str
             }
             entries.append(entry)
             new_entries.append(entry)
-        release_dir.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(database, release_dir / entry["filename"])
-        release_candidates.append(entry)
+        changed = entry.get("sha256") != checksum
+        if changed:
+            entry["sha256"] = checksum
+        if entry in new_entries or changed:
+            release_dir.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(database, release_dir / entry["filename"])
+            release_candidates.append(entry)
 
     entries.sort(key=lambda item: (item["region"], int(item["version"])))
     write_json(history_path, history)

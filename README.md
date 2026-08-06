@@ -153,9 +153,11 @@ HTTP 行为：
 | --- | --- | --- | --- |
 | 国服 | 官方 iOS CDN | `rainbow_cn.json` → 上一版国服数据库 | 保留无法确认的哈希名 |
 | 台服 | `img-pc.so-net.tw` 官方 iOS CDN | `rainbow_tw.json` → 上一版台服数据库 | 保留无法确认的哈希名 |
-| 日服 | 官方 iOS CDN 加密 CDB，经 Coneshell 解密 | roboninon → 上一版日服数据库 | 优先使用已验证同版本的 roboninon，最后保留上一版 |
+| 日服 | 官方 iOS CDN 加密 CDB，经 Coneshell 解密 | 同版本 `pcr-tool` 部分库 → roboninon → 上一版日服数据库 | 保留无法确认的哈希名；官方恢复失败时使用 roboninon 可读库兜底 |
 
-日服 roboninon 数据只有在其版本与日服官方 iOS 清单一致时才会被接受。项目不读取其他数据库仓库，也不需要登录游戏账号。每次生成结果后都会运行 SQLite `integrity_check`；名称映射和恢复报告只保存在 GitHub Actions 的 `.cache` 中，不提交到仓库。
+日服官方 CDB 当前包含两组结构镜像；脚本会在确认两组表结构、类型、主键和行数逐表一致后，只保留与可读参考源对应的第二组。`pcr-tool` 部分库只有在其 `truthVersion` 和资源 MD5 都与官方 iOS 清单一致时才会用于精确恢复列名，尤其用于 `unit_name`、技能槽位和羁绊字段。roboninon 用于补齐更多表名、字段名和最终可读库兜底；上一版日服数据库继续补充前两个来源没有覆盖的名称。
+
+roboninon 的部分无后缀文本字段是英文，并另外提供 `_jp` 日文字段；因此它不会覆盖同版本 `pcr-tool` 给出的日服原始字段名。项目不需要登录游戏账号。每次生成结果后都会运行 SQLite `integrity_check`，并检查美空笔记依赖的关键日服字段；名称映射和恢复报告只保存在 GitHub Actions 的 `.cache` 中，不提交到仓库。
 
 自动任务位于 `.github/workflows/update-databases.yml`：
 

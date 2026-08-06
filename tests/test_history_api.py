@@ -47,6 +47,23 @@ class HistoryApiTests(unittest.TestCase):
             self.assertTrue(
                 all((root / ".cache" / "releases" / entry["filename"]).exists() for entry in first)
             )
+            candidates = json.loads(
+                (root / ".cache" / "release_candidates.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(candidates, [])
+
+            (root / "data" / "master_jp_unhash.db").write_bytes(b"corrected-db")
+            third = HISTORY.update_history(root, "2026-08-07")
+            self.assertEqual(third, [])
+            candidates = json.loads(
+                (root / ".cache" / "release_candidates.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual([entry["region"] for entry in candidates], ["jp"])
+            self.assertEqual(len(candidates[0]["sha256"]), 64)
 
     def test_api_selects_latest_version_by_region(self):
         history = {
