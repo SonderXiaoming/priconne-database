@@ -13,6 +13,9 @@ on:
 permissions:
   contents: write
 
+env:
+  PYTHONUTF8: "1"
+
 concurrency:
   group: update-priconne-databases
   cancel-in-progress: false
