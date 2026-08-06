@@ -1,66 +1,161 @@
-# 公主连结国服、台服与日服数据库自动恢复
+# Priconne Database API
 
-这个项目会定时取得《超异域公主连结☆Re:Dive》国服、台服、日服最新 `master.db`，恢复可读表名和字段名，并由 GitHub Actions 自动提交结果。
+面向开发者的《超异域公主连结☆Re:Dive》国服、台服、日服可读 SQLite 数据库与历史版本 API。项目每 6 小时检查各服官方 iOS CDN，恢复可识别的表名和字段名，将当前数据库提交到仓库，并把每个历史版本归档到 GitHub Releases。
 
-## 恢复优先级
+## 公共 API
 
-国服：
+生产地址：
 
-1. 从国服官方 App Store 取得 iOS 客户端版本，只检查官方 iOS CDN，不登录账号或读取第三方数据库仓库。
-2. 优先使用 `rainbow_cn.json`；数据库更新而彩虹表尚未更新时，用缓存或仓库中的国服上一版本迁移名称。
+- 主域名：<https://pcr.cialloworld.com>
+- Vercel 备用域名：<https://priconne-database.vercel.app>
 
-台服：
+API 当前无需密钥，允许浏览器跨域请求。JSON 响应使用 UTF-8，并缓存约 5 分钟。数据库文件不经过 Vercel 中转；下载接口会以 `302` 重定向到对应的 GitHub Release，适合前端、机器人、后端服务和定时同步程序使用。
 
-1. 直接检查 `img-pc.so-net.tw` 官方 iOS CDN，发现并下载最新台服数据库。
-2. 优先使用台服 `rainbow_tw.json` 恢复名称。
-3. 数据库更新而彩虹表尚未更新时，用缓存或仓库中的台服上一版本迁移名称。
+### 快速开始
 
-日服：
+查询三服最新版和全部历史记录：
 
-1. 从日服官方 iOS CDN 主动发现最新版本，下载官方 CDB 并校验 MD5 与文件大小。
-2. 在 Windows Action 中用上游采用的 Coneshell 解密官方 CDB，得到当前版本的原始 SQLite 数据库。
-3. 名称恢复优先使用 [roboninon.win 可读数据库](https://roboninon.win/db/download?compressed=true)，只有版本与官方 iOS 清单一致才会接受；上一版日服数据库作为第二参考迁移名称。
-4. 官方 CDB 解密或反哈希失败时，优先直接使用已验证同版本的 roboninon 数据库；roboninon 也不可用时才保留上一版日服数据库。
+```bash
+curl "https://pcr.cialloworld.com/api/databases"
+```
 
-三服版本和原始资源均从各自官方 iOS CDN 获取。日服的 roboninon 仅用于最高优先级的名称参考和故障兜底；项目不读取其他数据库仓库。
+查询日服：
 
-## 自动更新
+```bash
+curl "https://pcr.cialloworld.com/api/databases?region=jp"
+```
 
-工作流位于 `.github/workflows/update-databases.yml`，每 6 小时检查三服，也可以在 Actions 页面手动运行。
+下载日服最新版，`-L` 用于跟随 Release 重定向：
 
-生成文件：
+```bash
+curl -L "https://pcr.cialloworld.com/api/databases?region=jp&download=1" \
+  -o master_jp_unhash.db
+```
 
-- `data/master_cn_unhash.db`、`data/master_tw_unhash.db`、`data/master_jp_unhash.db`：可读 SQLite 数据库。
-- `data/version_cn.json`、`data/version_tw.json`、`data/version_jp.json`：版本和资源哈希。
+浏览器或 Node.js：
 
-名称映射和恢复报告只保存在 GitHub Actions 的 `.cache` 内部状态中，不提交到仓库。映射用于把上一版已确认名称迁移到新哈希，并记录彩虹表命中结果；数据库使用者不需要下载它。
+```js
+const baseURL = "https://pcr.cialloworld.com";
+const response = await fetch(`${baseURL}/api/databases?region=tw`);
 
-## 历史数据库与下载 API
+if (!response.ok) {
+  throw new Error(`Priconne Database API: ${response.status}`);
+}
 
-每次出现新版本时，Action 会按照“区服、版本号、UTC 日期”把可读数据库归档到 GitHub Releases，并更新 `data/history.json`。历史大文件不会反复塞进 Git 提交记录，适合长期保存和考古。
+const data = await response.json();
+console.log(data.latest.tw.version, data.latest.tw.url);
+```
 
-仓库包含一个无需额外依赖的 Vercel Python API。将仓库连接到 Vercel 后可使用：
+### 接口参考
 
-- `/api/databases`：列出三服最新版和全部历史版本。
-- `/api/databases?region=cn`：只查看指定区服，可选 `cn`、`tw`、`jp`。
-- `/api/databases?region=cn&version=202607312107`：查找指定版本。
-- `/api/databases?region=cn&download=1`：重定向下载最新版数据库。
+所有查询都使用：
 
-无需配置个人访问令牌；工作流使用仓库自带的 `GITHUB_TOKEN`。请在仓库设置中确认 Actions 的 Workflow permissions 为 **Read and write permissions**。
+```text
+GET /api/databases
+```
+
+| 参数 | 必填 | 说明 |
+| --- | --- | --- |
+| `region` | 否 | 区服：`cn`、`tw` 或 `jp` |
+| `version` | 否 | 精确版本号。建议始终按字符串处理，避免国服长版本号精度丢失 |
+| `download` | 否 | `1`、`true` 或 `yes` 时重定向到匹配数据库；默认返回 JSON |
+
+常用请求：
+
+| 请求 | 用途 |
+| --- | --- |
+| [`/api/databases`](https://pcr.cialloworld.com/api/databases) | 三服最新版与历史记录 |
+| [`?region=cn`](https://pcr.cialloworld.com/api/databases?region=cn) | 国服最新版与国服历史 |
+| [`?region=tw`](https://pcr.cialloworld.com/api/databases?region=tw) | 台服最新版与台服历史 |
+| [`?region=jp`](https://pcr.cialloworld.com/api/databases?region=jp) | 日服最新版与日服历史 |
+| [`?region=jp&version=10070110`](https://pcr.cialloworld.com/api/databases?region=jp&version=10070110) | 查询指定日服版本 |
+| [`?region=jp&download=1`](https://pcr.cialloworld.com/api/databases?region=jp&download=1) | 下载日服最新版 |
+| [`?region=cn&version=202607312107&download=1`](https://pcr.cialloworld.com/api/databases?region=cn&version=202607312107&download=1) | 下载指定国服版本 |
+
+JSON 响应结构：
+
+```json
+{
+  "repository": "SonderXiaoming/priconne-database",
+  "latest": {
+    "jp": {
+      "region": "jp",
+      "version": "10070110",
+      "date": "2026-08-06",
+      "tag": "database-jp-10070110",
+      "filename": "master_jp_unhash_10070110_2026-08-06.db",
+      "url": "https://github.com/.../master_jp_unhash_10070110_2026-08-06.db"
+    }
+  },
+  "history": []
+}
+```
+
+- `latest`：按区服键名返回当前筛选结果中的最新版本。
+- `history`：所有符合 `region` 和 `version` 条件的归档记录。
+- `date`：首次归档日期，采用 UTC 的 `YYYY-MM-DD` 格式。
+- `url`：数据库 Release 资源的永久下载地址。
+
+HTTP 行为：
+
+| 状态 | 含义 |
+| --- | --- |
+| `200` | 查询成功；没有匹配项时返回空的 `latest` 和 `history` |
+| `204` | CORS 预检成功 |
+| `302` | `download=1`，重定向到 GitHub Release |
+| `400` | `region` 不是 `cn`、`tw` 或 `jp` |
+| `404` | 下载模式下没有找到匹配版本 |
+
+## 数据库与兼容性
+
+当前数据库：
+
+- `data/master_cn_unhash.db`：国服 SQLite 数据库。
+- `data/master_tw_unhash.db`：台服 SQLite 数据库。
+- `data/master_jp_unhash.db`：日服 SQLite 数据库。
+- `data/version_*.json`：各服版本、官方资源哈希和来源信息。
+- `data/history.json`：API 使用的历史版本索引。
+
+开发时请注意：
+
+- 游戏更新可能新增、删除或调整表结构，不应假定所有版本具有完全相同的 schema。
+- 自动恢复只应用有可靠证据的名称。无法确认的表或字段会保留 `v1_<hash>` 或哈希字段名，不会猜测重命名。
+- 数据库通常为数十 MB，建议通过 `download=1` 或响应中的 `url` 下载后在本地缓存，不要反复从 Git 分支读取大文件。
+- 历史数据库以“区服 + 版本号”作为 Release 标签，以 UTC 日期记录首次归档时间。
+
+## 更新与名称恢复策略
+
+| 区服 | 原始数据 | 名称恢复优先级 | 失败策略 |
+| --- | --- | --- | --- |
+| 国服 | 官方 iOS CDN | `rainbow_cn.json` → 上一版国服数据库 | 保留无法确认的哈希名 |
+| 台服 | `img-pc.so-net.tw` 官方 iOS CDN | `rainbow_tw.json` → 上一版台服数据库 | 保留无法确认的哈希名 |
+| 日服 | 官方 iOS CDN 加密 CDB，经 Coneshell 解密 | roboninon → 上一版日服数据库 | 优先使用已验证同版本的 roboninon，最后保留上一版 |
+
+日服 roboninon 数据只有在其版本与日服官方 iOS 清单一致时才会被接受。项目不读取其他数据库仓库，也不需要登录游戏账号。每次生成结果后都会运行 SQLite `integrity_check`；名称映射和恢复报告只保存在 GitHub Actions 的 `.cache` 中，不提交到仓库。
+
+自动任务位于 `.github/workflows/update-databases.yml`：
+
+1. 每 6 小时检查三服版本，也支持手动触发。
+2. 下载、解包、恢复名称并校验数据库。
+3. 提交当前数据库和版本元数据。
+4. 为首次出现的版本创建 GitHub Release，并更新 `data/history.json`。
+5. 保存内部缓存，供下次版本更新迁移名称。
 
 ## 本地运行
 
-需要 Python 3.11 或更高版本。日服压缩源需要 Brotli，官方日服 CDB 解密需要 Windows：
+完整数据库更新需要 Python 3.11 或更高版本；官方日服 CDB 解密需要 Windows：
 
 ```powershell
 python -m pip install -r requirements.txt
-python scripts/priconne_unhash.py update-cn --rainbow rainbow_cn.json
+
+python scripts/priconne_unhash.py update-cn `
+  --rainbow rainbow_cn.json
+
 python scripts/priconne_unhash.py update `
   --rainbow rainbow_tw.json
+
 python scripts/priconne_unhash.py update-jp
 ```
-
-`rainbow_cn.json` 仅用于国服，不会参与台服恢复。国服内置 `202607312107` 作为最低 iOS 清单基线；如果知道更新的官方 iOS 清单版本，可额外传入 `--display-version`。当前产物不会参与版本发现，只会作为同服上一版可读库帮助恢复名称。
 
 如果台服还有自己的可读参考库，可以重复传入：
 
@@ -69,14 +164,31 @@ python scripts/priconne_unhash.py update `
   --reference "my-tw=C:\path\redive_tw.db=95"
 ```
 
-参数最后的数字是参考库优先级；同区服、时间越近的库应设置得越高。
+参数末尾数字为参考库优先级。参考库应属于同一区服，时间越近的可信库可设置越高优先级。
 
-## 安全策略
+运行测试：
 
-程序只应用彩虹表直接命中、同服上一版本数据匹配或参考库一致支持的名称。不能可靠判断的表和字段会保留原哈希名，不会强行猜测。外部日服库的版本必须在日服官方 iOS CDN 中真实存在，所有输出都会执行 SQLite `integrity_check`。
+```powershell
+python -m unittest discover -s tests -v
+```
 
-## 致谢与说明
+## 部署自己的 API
 
-日服 CDB 解密沿用上游收录的 `Coneshell_call.exe`（EAirPeter、esterTion）与 Cygames `coneshell.dll`，出处和说明见 `src/vendor/coneshell/README.md`。
+仓库已经包含 `api/databases.py`、`pyproject.toml` 和 `vercel.json`。将仓库连接到 Vercel 并部署 `master` 即可，无需配置数据库或 API 密钥。函数只需要打包 API 源码和 `data/history.json`；`data/*.db`、恢复脚本、测试与彩虹表已从函数包中排除。
 
-本项目只用于资料研究与数据保存；游戏及数据版权归原权利人所有。
+Vercel Python 入口为：
+
+```toml
+[tool.vercel]
+entrypoint = "api.databases:handler"
+```
+
+如果使用自己的域名，将域名绑定到 Vercel Production Deployment 后，把客户端的 `baseURL` 换成该域名即可。
+
+GitHub Actions 使用仓库自带的 `GITHUB_TOKEN`。请在仓库设置中确认 **Actions → General → Workflow permissions** 为 **Read and write permissions**，否则机器人无法提交索引或创建 Releases。
+
+## 致谢与声明
+
+日服 CDB 解密沿用上游收录的 `Coneshell_call.exe`（EAirPeter、esterTion）与 Cygames `coneshell.dll`，出处见 `src/vendor/coneshell/README.md`。
+
+本项目只用于资料研究、开发和数据保存；游戏及数据版权归原权利人所有。公共服务受 Vercel 与 GitHub 的可用性及流量限制约束，生产项目建议做好本地缓存与失败重试。
