@@ -89,6 +89,30 @@ class UnhashTests(unittest.TestCase):
         )
         self.assertEqual(legacy["storage_hash"], legacy["md5"])
 
+    def test_jp_discovery_uses_only_official_ios_candidates(self):
+        observed = []
+
+        def probe(version, cdn, version_width=0):
+            observed.append((version, cdn, version_width))
+            if version in (10070110, 10070120):
+                return {
+                    "version": str(version),
+                    "platform": "iOS",
+                    "cdn": cdn,
+                    "path": "a/masterdata_master_0003.cdb",
+                    "md5": "a" * 32,
+                    "storage_hash": "b" * 16,
+                    "size": 123,
+                }
+            return None
+
+        with patch.object(MODULE, "probe_ios_build", side_effect=probe):
+            build = MODULE.discover_jp_build({"version": 10070110})
+
+        self.assertEqual(build["version"], "10070120")
+        self.assertTrue(observed)
+        self.assertTrue(all(cdn == MODULE.JP_IOS_CDN for _, cdn, _ in observed))
+
     def test_reference_names_are_transferred_and_applied(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -113,6 +137,61 @@ class UnhashTests(unittest.TestCase):
             with closing(sqlite3.connect(output)) as db:
                 columns = [row[1] for row in db.execute('PRAGMA table_info("unit_data")')]
                 self.assertEqual(columns, ["unit_id", "name"])
+
+    def test_higher_priority_reference_wins(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            preferred = root / "preferred.db"
+            previous = root / "previous.db"
+            target = root / "target.db"
+            make_database(preferred, "preferred_name", ("id", "name"))
+            make_database(previous, "previous_name", ("id", "name"))
+            make_database(target, "v1_" + "a" * 64, ("b" * 64, "c" * 64))
+
+            mapping = MODULE.resolve_mapping(
+                target,
+                [],
+                [
+                    ("roboninon", preferred, 260),
+                    ("jp-previous-readable", previous, 130),
+                ],
+            )
+
+            resolved = mapping["tables"]["v1_" + "a" * 64]
+            self.assertEqual(resolved["name"], "preferred_name")
+            self.assertEqual(resolved["sources"], ["roboninon"])
+
+    def test_decrypt_jp_cdb_invokes_coneshell_and_validates_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "master.cdb"
+            destination = root / "master.db"
+            executable = root / "Coneshell_call.exe"
+            source.write_bytes(b"encrypted")
+            executable.write_bytes(b"test")
+
+            def fake_run(command, **kwargs):
+                make_database(
+                    Path(command[-1]),
+                    "v1_" + "d" * 64,
+                    ("e" * 64, "f" * 64),
+                )
+                return type(
+                    "Result",
+                    (),
+                    {"returncode": 0, "stdout": "", "stderr": ""},
+                )()
+
+            with (
+                patch.object(MODULE.os, "name", "nt"),
+                patch.object(MODULE.subprocess, "run", side_effect=fake_run) as run,
+            ):
+                stats = MODULE.decrypt_jp_cdb(source, destination, executable)
+
+            self.assertTrue(destination.exists())
+            self.assertEqual(stats["tables"], 1)
+            command = run.call_args.args[0]
+            self.assertEqual(command[1], "-cdb")
 
     def test_rainbow_direct_match(self):
         with tempfile.TemporaryDirectory() as directory:

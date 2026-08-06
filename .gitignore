@@ -1,7 +1,8 @@
-# dependencies and Python caches
-/node_modules
+# Python caches
 __pycache__/
 *.pyc
+*.db-shm
+*.db-wal
 
 # local recovery caches and fixtures
 .cache/
@@ -21,9 +22,3 @@ work/
 # system files
 .DS_Store
 Thumbs.db
-
-# database scraps
-changed.json
-*.cdb
-*.db.br
-*.unity3d
