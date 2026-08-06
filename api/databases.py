@@ -10,6 +10,8 @@ from urllib.parse import parse_qs, urlparse
 
 HISTORY_PATH = Path("data/history.json")
 VALID_REGIONS = {"cn", "tw", "jp"}
+VALID_SOURCES = {"auto", "proxy", "github"}
+GITHUB_PROXY = "https://gh.rem.asia/"
 
 
 def load_history() -> dict:
@@ -34,6 +36,36 @@ def latest_by_region(entries: list[dict]) -> dict[str, dict]:
     return latest
 
 
+def select_download_source(requested: str, country: str = "") -> str:
+    if requested == "proxy":
+        return "proxy"
+    if requested == "github":
+        return "github"
+    return "proxy" if country.upper() == "CN" else "github"
+
+
+def github_proxy_url(url: str) -> str:
+    if url.startswith("https://github.com/"):
+        return GITHUB_PROXY + url
+    return url
+
+
+def add_download_urls(entries: list[dict], source: str) -> list[dict]:
+    result: list[dict] = []
+    for entry in entries:
+        github_url = entry["url"]
+        proxy_url = github_proxy_url(github_url)
+        value = dict(entry)
+        value["source"] = source
+        value["urls"] = {
+            "github": github_url,
+            "proxy": proxy_url,
+        }
+        value["url"] = value["urls"][source]
+        result.append(value)
+    return result
+
+
 class handler(BaseHTTPRequestHandler):
     def send_json(self, status: int, value: dict) -> None:
         body = json.dumps(value, ensure_ascii=False, indent=2).encode("utf-8")
@@ -41,6 +73,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Cache-Control", "public, max-age=300, s-maxage=300")
+        self.send_header("Vary", "X-Vercel-IP-Country")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -50,14 +83,24 @@ class handler(BaseHTTPRequestHandler):
         region = query.get("region", [None])[0]
         version = query.get("version", [None])[0]
         download = query.get("download", ["0"])[0].lower() in {"1", "true", "yes"}
+        requested_source = query.get("source", ["auto"])[0].lower()
         if region and region not in VALID_REGIONS:
             self.send_json(400, {"error": "region must be cn, tw, or jp"})
+            return
+        if requested_source not in VALID_SOURCES:
+            self.send_json(
+                400,
+                {"error": "source must be auto, proxy, or github"},
+            )
             return
 
         history = load_history()
         entries = select_entries(history, region)
         if version:
             entries = [entry for entry in entries if str(entry["version"]) == version]
+        country = self.headers.get("x-vercel-ip-country", "")
+        source = select_download_source(requested_source, country)
+        entries = add_download_urls(entries, source)
         selected = entries[0] if entries else None
         if download:
             if selected is None:
@@ -66,6 +109,7 @@ class handler(BaseHTTPRequestHandler):
             self.send_response(302)
             self.send_header("Location", selected["url"])
             self.send_header("Access-Control-Allow-Origin", "*")
+            self.send_header("Vary", "X-Vercel-IP-Country")
             self.end_headers()
             return
 
@@ -73,6 +117,7 @@ class handler(BaseHTTPRequestHandler):
             200,
             {
                 "repository": history.get("repository"),
+                "download_source": source,
                 "latest": latest_by_region(entries),
                 "history": entries,
             },
@@ -83,4 +128,5 @@ class handler(BaseHTTPRequestHandler):
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Methods", "GET, OPTIONS")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Vary", "X-Vercel-IP-Country")
         self.end_headers()

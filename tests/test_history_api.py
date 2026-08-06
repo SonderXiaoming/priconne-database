@@ -61,6 +61,61 @@ class HistoryApiTests(unittest.TestCase):
         self.assertEqual(latest["cn"]["url"], "new")
         self.assertEqual(latest["tw"]["url"], "tw")
 
+    def test_auto_source_uses_proxy_only_for_mainland_china(self):
+        self.assertEqual(API.select_download_source("auto", "CN"), "proxy")
+        self.assertEqual(API.select_download_source("auto", "US"), "github")
+        self.assertEqual(API.select_download_source("auto", ""), "github")
+        self.assertEqual(API.select_download_source("github", "CN"), "github")
+        self.assertEqual(API.select_download_source("proxy", "US"), "proxy")
+
+    def test_api_exposes_proxy_and_github_urls(self):
+        github_url = (
+            "https://github.com/owner/repo/releases/download/database-jp-1/"
+            "master_jp.db"
+        )
+        entries = API.add_download_urls(
+            [{"region": "jp", "version": "1", "url": github_url}],
+            "proxy",
+        )
+
+        entry = entries[0]
+        self.assertEqual(entry["source"], "proxy")
+        self.assertEqual(entry["urls"]["github"], github_url)
+        self.assertEqual(
+            entry["urls"]["proxy"],
+            "https://gh.rem.asia/" + github_url,
+        )
+        self.assertEqual(entry["url"], entry["urls"]["proxy"])
+
+    def test_cn_download_redirect_uses_proxy(self):
+        github_url = (
+            "https://github.com/owner/repo/releases/download/database-jp-1/"
+            "master_jp.db"
+        )
+        request = object.__new__(API.handler)
+        request.path = "/api/databases?region=jp&download=1"
+        request.headers = {"x-vercel-ip-country": "CN"}
+        statuses = []
+        headers = {}
+        request.send_response = statuses.append
+        request.send_header = headers.__setitem__
+        request.end_headers = lambda: None
+
+        with patch.object(
+            API,
+            "load_history",
+            return_value={
+                "entries": [
+                    {"region": "jp", "version": "1", "url": github_url}
+                ]
+            },
+        ):
+            request.do_GET()
+
+        self.assertEqual(statuses, [302])
+        self.assertEqual(headers["Location"], "https://gh.rem.asia/" + github_url)
+        self.assertEqual(headers["Vary"], "X-Vercel-IP-Country")
+
 
 if __name__ == "__main__":
     unittest.main()

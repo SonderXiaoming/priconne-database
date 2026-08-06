@@ -9,7 +9,9 @@
 - 主域名：<https://pcr.cialloworld.com>
 - Vercel 备用域名：<https://priconne-database.vercel.app>
 
-API 当前无需密钥，允许浏览器跨域请求。JSON 响应使用 UTF-8，并缓存约 5 分钟。数据库文件不经过 Vercel 中转；下载接口会以 `302` 重定向到对应的 GitHub Release，适合前端、机器人、后端服务和定时同步程序使用。
+API 当前无需密钥，允许浏览器跨域请求。JSON 响应使用 UTF-8，并缓存约 5 分钟。数据库文件不经过 Vercel 中转；下载接口会以 `302` 重定向到 GitHub Release 原始地址或其代理地址，适合前端、机器人、后端服务和定时同步程序使用。
+
+默认 `source=auto`：Vercel 根据 `X-Vercel-IP-Country` 判断访问者国家，中国大陆（`CN`）使用 `gh.rem.asia` GitHub 代理，其他地区直接使用 GitHub。IP 定位不准确时，可用 `source=proxy` 或 `source=github` 显式覆盖。JSON 中始终同时提供两个地址，便于客户端自行重试。
 
 ### 快速开始
 
@@ -29,6 +31,16 @@ curl "https://pcr.cialloworld.com/api/databases?region=jp"
 
 ```bash
 curl -L "https://pcr.cialloworld.com/api/databases?region=jp&download=1" \
+  -o master_jp_unhash.db
+```
+
+强制使用 GitHub 代理或 GitHub 原始地址：
+
+```bash
+curl -L "https://pcr.cialloworld.com/api/databases?region=jp&download=1&source=proxy" \
+  -o master_jp_unhash.db
+
+curl -L "https://pcr.cialloworld.com/api/databases?region=jp&download=1&source=github" \
   -o master_jp_unhash.db
 ```
 
@@ -59,6 +71,7 @@ GET /api/databases
 | `region` | 否 | 区服：`cn`、`tw` 或 `jp` |
 | `version` | 否 | 精确版本号。建议始终按字符串处理，避免国服长版本号精度丢失 |
 | `download` | 否 | `1`、`true` 或 `yes` 时重定向到匹配数据库；默认返回 JSON |
+| `source` | 否 | `auto`、`proxy` 或 `github`；默认按访问者国家自动选择 |
 
 常用请求：
 
@@ -70,6 +83,8 @@ GET /api/databases
 | [`?region=jp`](https://pcr.cialloworld.com/api/databases?region=jp) | 日服最新版与日服历史 |
 | [`?region=jp&version=10070110`](https://pcr.cialloworld.com/api/databases?region=jp&version=10070110) | 查询指定日服版本 |
 | [`?region=jp&download=1`](https://pcr.cialloworld.com/api/databases?region=jp&download=1) | 下载日服最新版 |
+| [`?region=jp&download=1&source=proxy`](https://pcr.cialloworld.com/api/databases?region=jp&download=1&source=proxy) | 强制通过 `gh.rem.asia` 下载日服最新版 |
+| [`?region=jp&download=1&source=github`](https://pcr.cialloworld.com/api/databases?region=jp&download=1&source=github) | 强制通过 GitHub 下载日服最新版 |
 | [`?region=cn&version=202607312107&download=1`](https://pcr.cialloworld.com/api/databases?region=cn&version=202607312107&download=1) | 下载指定国服版本 |
 
 JSON 响应结构：
@@ -77,6 +92,7 @@ JSON 响应结构：
 ```json
 {
   "repository": "SonderXiaoming/priconne-database",
+  "download_source": "github",
   "latest": {
     "jp": {
       "region": "jp",
@@ -84,7 +100,12 @@ JSON 响应结构：
       "date": "2026-08-06",
       "tag": "database-jp-10070110",
       "filename": "master_jp_unhash_10070110_2026-08-06.db",
-      "url": "https://github.com/.../master_jp_unhash_10070110_2026-08-06.db"
+      "source": "github",
+      "url": "https://github.com/.../master_jp_unhash_10070110_2026-08-06.db",
+      "urls": {
+        "github": "https://github.com/.../master_jp_unhash_10070110_2026-08-06.db",
+        "proxy": "https://gh.rem.asia/https://github.com/.../master_jp_unhash_10070110_2026-08-06.db"
+      }
     }
   },
   "history": []
@@ -94,7 +115,10 @@ JSON 响应结构：
 - `latest`：按区服键名返回当前筛选结果中的最新版本。
 - `history`：所有符合 `region` 和 `version` 条件的归档记录。
 - `date`：首次归档日期，采用 UTC 的 `YYYY-MM-DD` 格式。
-- `url`：数据库 Release 资源的永久下载地址。
+- `download_source`：本次请求由自动判断或 `source` 参数选中的下载源。
+- `url`：当前选中下载源的地址，保持对旧客户端兼容。
+- `urls.github`：GitHub Release 原始地址。
+- `urls.proxy`：在 GitHub 地址前加上 `https://gh.rem.asia/` 的代理地址。
 
 HTTP 行为：
 
@@ -102,8 +126,8 @@ HTTP 行为：
 | --- | --- |
 | `200` | 查询成功；没有匹配项时返回空的 `latest` 和 `history` |
 | `204` | CORS 预检成功 |
-| `302` | `download=1`，重定向到 GitHub Release |
-| `400` | `region` 不是 `cn`、`tw` 或 `jp` |
+| `302` | `download=1`，重定向到自动或显式选中的下载源 |
+| `400` | `region` 或 `source` 参数无效 |
 | `404` | 下载模式下没有找到匹配版本 |
 
 ## 数据库与兼容性
