@@ -430,6 +430,7 @@
         "6714f4c05bf09c0c6b276eee938b7c7af16fa3929dfaa8273e63db2ec3328e3b": "ailment_id",
         "79322035404f1f9b46a81f76d7eb7a12489283684b44beabd089ef56feeca827": "ailment_action",
         "121ed1befd0e68fd4e9b1f33361984518d38fe1e8d17f8dc5d94492ed445f281": "ailment_detail_1",
+        "0db46a8ed5f0000fb6d91eecbef8680a94c1dd8a7a26ae328557842a9ed5c2d3": "ailment_name",
         "--table_name": "ailment_data"
     },
     "v1_464fb5c00748d1f828cd736351f67e78926227f3d2d0a6ea6a7206cc98e1163b": {
@@ -1274,6 +1275,8 @@
         "c03d4329b4e1c2a72d6c62b85f7d61326df43edb59d37d2b8cae8374fe2c139e": "start_time",
         "9963659017bc8bac829f665c92be3f722f7a7b9f05676e7b871dc69b3057638c": "end_time",
         "7933750951c33dd4bf2bb37faa1417b697a79f9304531b704d5ba46c1806841e": "stock_10_flag",
+        "a36616f1c6b158cbff943dd57dd7a75355405b7b76220d411de7acc1f071260b": "relation_id",
+        "eb9228a380d0e5a44b052382980f420a1b68a1c50a5980b863e048a403443d6f": "relation_count",
         "--table_name": "campaign_freegacha"
     },
     "v1_ed4ca27837c72ac87350a286201025b9e6442bb45ac93d7a1a0d476f0e5572bd": {
@@ -2008,6 +2011,7 @@
         "58b9b2787db8f31ff553d5b17561e2bfd633b76fbafcf17b29c64960a6b16c28": "score_coefficient_5",
         "be15e7525a5a5d932141b6ed2984ac59e95324f3d65657fa8769d0b5affc8205": "param_adjust_id",
         "939af0be25fbd6177a4a77b352a7b5ff1371eb282bc1e929140485f4c69fa376": "param_adjust_interval",
+        "c3809bba92ba324f3273892db75ca5fb9761b9722a2bafb55f1eae55774ffd22": "rsl_unlock_lap",
         "--table_name": "clan_battle_2_map_data"
     },
     "v1_c79b623438ce43db8da68c802fe7fb8fcfd68493b0e7f6be82c7982296c14db5": {
@@ -2357,6 +2361,9 @@
         "7a635bb0fb70d8db04bd5b85f23d1e14dff37a9ccd225ff2438257b5b1209dbd": "resource_id",
         "e7374c67b00c2f9290df1dc848ea730880e4ccbdf3c1c1324e786194f08b0da3": "start_time",
         "bb633fa36ff829125cfe757175b61ef35b885e2e6efc671caec318f5a42b9e83": "end_time",
+        "da78d1a33311d399e02c732c10ba85bf13c9e43459111a58ac49072ef40b8685": "mode_change_end_time",
+        "8b3d195fa5e9ebd5161f91da5123e6596bd458750dde8e7f5b457a9b9a1b6f8d": "mode_change_start_time",
+        "91f9fcde2d17a4c3590ae3f189fb53f0cbc4b1b03e40088ea562d99d48f27df9": "mode_change_remind_time",
         "--table_name": "clan_battle_schedule"
     },
     "v1_c02bd2d02ebbec2d61d62a46dd33e87ef2c7d2a3f1c67cd0855930da3cf3d916": {
@@ -3125,6 +3132,7 @@
         "c764f88675ad69368a0d6ef1aa3265e9a57f7433ba177ab78a741936cb873d24": "child_enemy_parameter_3",
         "39ed9b95b8576b55af05a7cf5f6af1d2d804d4c4984684740a1f285233442650": "child_enemy_parameter_4",
         "3e6fe0975c91a5754639b7db862209d898b9ea9c36e14337b1a2a657393e2743": "child_enemy_parameter_5",
+        "1da33877179681a89cc160ed40bd3d681c595b60f407aba8c710c46448e6b924": "name",
         "--table_name": "enemy_m_parts"
     },
     "v1_2cf4135fc8d047c351a21c589f16a2f0f234fa3073b752e7c5b6e4c2ab22feb5": {
@@ -3330,6 +3338,9 @@
         "c105432c1e135e75f97dcaa8351d18ab94188eeb5bfa9c3744ccfc8259d5752f": "energy_recovery_rate",
         "0077d78a63830ea46c86cec4e8bb6919bb9fb44d288185f80c90547ff33dc50d": "energy_reduce_rate",
         "f1176ccda2f114a0adb1c8e6628133b29436f0bebe040dafb7504ac3981ef2ad": "accuracy",
+        "9d6966cf1b5aa4419aeecaa236b95d072f103a51c8e9dd30ab628d4d36d22019": "equipment_name",
+        "f02ad3d633cb53ade0a70e456e6698897bf0ea38c2e5999ac588d0636561fd7a": "promotion_level",
+        "c8be96072d7832e6ce67a6dccfc357ef5b1349230a32ee0036232d90c0e2b146": "description",
         "--table_name": "equipment_enhance_rate"
     },
     "v1_ef07b58340f38d1ae6d762fdc9ab4d0609b1376a22ee9c9720a9417746e3a9f4": {
@@ -4160,6 +4171,18 @@
         "f66996f51c8012dc6400e6186b2cb9cf702750d96fe71d3497c94252555a2d43": "prizegacha_id",
         "5593d4a9e48683bc83a0773cd2cd40da1e9ca2aaa79fe462c3f6ea5e399e7412": "gacha_times_limit10",
         "1a276c8a3930dce7c1130e57f50df5dd5b7049eebffda1724b4e788bee1b64dc": "pickup_id",
+        "298958186928ab7b89608c952a30fe997254f9dcd124ea551079b4bd247b0053": "gacha_odds",
+        "0dcba9588c833f3e7890ce598daceedf59354dbf6eb14c9f50a0a90496e6b398": "gacha10_special_odds_star1",
+        "e2006b18b496dd44acd052c490dd0639a4a089ef5a6077eec10c84b90523eb07": "gacha10_special_odds_star2",
+        "fe1a28100066ccaa3d1217d38b96c8e8a3fe3d4783781f4c0344423a88ac3fec": "chara_odds_star1",
+        "c0fa3b42906e12f8ba27e7a9352b8d30b0e4bf2ac702ea6e3a37088f9524f9c9": "gacha_bonus_id",
+        "c8346af5d18ea181e7def94fe224da6645fb657ab5043b0a364d7b915e880dc1": "rarity_odds",
+        "3269b2e9f2369a923d3e540210892487eb13e5e44dd60c594e1f5f4a99c587cf": "chara_odds_star2",
+        "50594a3cd82524a7ac814f53f831effffd9846593dfbfdb9f2ed86a3664b7618": "special_id",
+        "0cf2f02afe192c1ca2b020d18a8ea19417412773fca56e9eb2e4ee10ec1c2ad3": "chara_odds_star3",
+        "f79b8c6221293a8a68c2fa3fa63f21ca77b8e2a4af91b43584576d9906d73a09": "gacha10_special_odds_star3",
+        "0859766e9949226db3d14bf7a575f597d0ac18aac15bb013ae4ff84a99dc030d": "gacha_odds_star2",
+        "cacc57f19f94a9a836488b7382d47a2e22de4835f69d2cff42a69a61322c9629": "parallel_id",
         "--table_name": "gacha_data"
     },
     "v1_627e8c7cdc10e868b05b24f9f72c48802faeec65e622dfc59d96c21c967583b4": {
@@ -4170,6 +4193,7 @@
         "98c65783e4fecc56fafaeeba8c23d205150680523f462fc6d7b17d234ec240e6": "pickup_gacha_id",
         "c32a9525190966e36657d4978cb041598fae35b610ed28ccfdf1d403ab66454e": "start_time",
         "07fe78c3753c67144ec6386a2115d77b48e7e56a053dc71380073e34a551af68": "end_time",
+        "13c4d5356d3ff19e0a09ec686771c94fc04092cb6c3b3e760eb1d5e0f4b7977a": "gacha_bonus_id",
         "--table_name": "gacha_exchange_lineup"
     },
     "v1_467410c64293acd027caadf9d6800b35227d18815eb11ced862b962306425a90": {
@@ -7655,6 +7679,7 @@
         "7e898ac82bbf4785eaf10f3739df490aaef38e955a82989bb43c1375df349778": "start_time",
         "d39f9d59826f7b417ebd5452736bc335e40aaa4c460272286dac9639d0b5c57d": "end_time",
         "1f3c8b07a38ec072428e5eb7f2bd0c22e93d6d6470e14293354b38492d0b8923": "add_treasure_num",
+        "411ca47707eb0e05db11ff94f8f4d8c9e96c2bf9c35151dc37fadb76b62c3c37": "lv_reward_flag",
         "--table_name": "quest_data"
     },
     "v1_52e833e99be5c7bd422f4e950bc334e596451c89c68304bdf5d6aa23179c2056": {
@@ -11371,6 +11396,7 @@
         "91406e97d76da7c04ed69d0c4c4f7bb8d6b6cc74eff6602ac95166e1eb263ef1": "top_icon_y",
         "08eb531cad98f058bb2b48562ad20c1d6de9629269aeb90c8bd4689947231620": "start_time",
         "d598cafc8444ed5f1af39f4b011fefd8912aa4ecb05f394289bbb2fc58d6bc2b": "end_time",
+        "a93206ae93946bc0b45f6eacec9033270e6c63cbaf96fb8b9765a9ddc7fa77d8": "condition_team_lv",
         "--table_name": "travel_area_data"
     },
     "v1_7e238b13599d68c8a90ddcbd7bfc997bc5e0f8fa77153a79db0b2253fd1628b6": {
@@ -11922,6 +11948,9 @@
         "61d3e2d6dacaddd8d899aa04e9de93b4ad763fd7e02552dfbfd969c8760fa564": "energy_recovery_rate",
         "e1048c17d537247dc75fd43f718e3f39dff64416473808f8dc5a28f548ad0ce0": "energy_reduce_rate",
         "9576b5303a157bdd109c0c4bacbfffbd5fd9f5bfbdc632ee686c3e3a6da900c2": "accuracy",
+        "da1b7db10693ecc517b49e5da1fcc19e95b40bed8a377e591fc5ac2c71fe43f9": "equipment_name",
+        "985894c77c2a893306e9458f0fa97efcabe3e0c04a9d4b4ad0fd3ea6ded7b161": "promotion_level",
+        "8ad6f2496c82b1efd56244bf8280c38bebaa8fc3a0df57152526494a15ffe6ab": "description",
         "--table_name": "unique_equipment_enhance_rate"
     },
     "v1_c7c1a4a8cf9141d3ba187b64f2edf3b97b8c1693c7b2971f0d8904c6209f47a1": {
