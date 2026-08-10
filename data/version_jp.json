@@ -1,19 +1,19 @@
 {
-  "asset_md5": "eb1d239dca1ceba1f1a7f8239adb6939",
+  "asset_md5": "0b0f8bfe3ee7212e4412b2fa48275fa9",
   "cdn": "https://prd-priconne-redive.akamaized.net/",
-  "hash": "dcba3ae4d435eb72",
+  "hash": "1320ec1a98770bdf",
   "name_reference_priority": [
     "pcr-tool-same-version",
     "roboninon",
     "jp-previous-readable"
   ],
   "pcr_tool": {
-    "asset_md5": "eb1d239dca1ceba1f1a7f8239adb6939",
-    "truth_version": "10070110",
-    "updated_at": "2026-08-03 16:31:45.606013"
+    "asset_md5": "0b0f8bfe3ee7212e4412b2fa48275fa9",
+    "truth_version": "10070200",
+    "updated_at": "2026-08-10 10:50:36.283688"
   },
   "platform": "iOS",
   "source": "official-ios-cdn+coneshell",
-  "storage_hash": "dcba3ae4d435eb72",
-  "version": 10070110
+  "storage_hash": "1320ec1a98770bdf",
+  "version": 10070200
 }
