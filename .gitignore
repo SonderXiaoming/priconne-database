@@ -1,5 +1,17 @@
-# The public repository is intentionally release-only.
-# Keep generation code, mappings, caches, and databases out of the Git branch.
+# The public repository only exposes the Release API and release documentation.
+# Keep generation code, mappings, caches, and database payloads out of Git.
 /*
 !/.gitignore
+!/.vercelignore
 !/README.md
+!/pyproject.toml
+!/vercel.json
+!/api/
+/api/*
+!/api/databases.py
+!/data/
+/data/*
+!/data/history.json
+!/tests/
+/tests/*
+!/tests/test_databases_api.py
