@@ -1,24 +1,5 @@
-# Python caches
-__pycache__/
-*.pyc
-*.db-shm
-*.db-wal
-
-# local recovery caches and fixtures
-.cache/
-_fixtures/
-_upstream/
-work/
-
-# IDEs and editors
-.idea
-.project
-.classpath
-.c9/
-*.launch
-.settings/
-*.sublime-workspace
-
-# system files
-.DS_Store
-Thumbs.db
+# The public repository is intentionally release-only.
+# Keep generation code, mappings, caches, and databases out of the Git branch.
+/*
+!/.gitignore
+!/README.md
