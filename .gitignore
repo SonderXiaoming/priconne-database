@@ -4,6 +4,7 @@
 !/.gitignore
 !/.vercelignore
 !/README.md
+!/pyproject.toml
 !/vercel.json
 !/api/
 /api/*
