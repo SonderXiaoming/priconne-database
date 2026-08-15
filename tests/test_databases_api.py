@@ -49,6 +49,38 @@ class DatabaseApiTests(unittest.TestCase):
         self.assertEqual(entry["urls"]["proxy"], API.GITHUB_PROXY + github_url)
         self.assertEqual(entry["url"], entry["urls"]["proxy"])
 
+    def test_api_selects_brotli_asset_and_filename(self):
+        github_url = (
+            "https://github.com/owner/repo/releases/download/database-jp-1/"
+            "master_jp.db"
+        )
+        br_url = github_url + ".br"
+        entry = API.add_download_urls(
+            [
+                {
+                    "region": "jp",
+                    "version": "1",
+                    "filename": "master_jp.db",
+                    "url": github_url,
+                    "br_url": br_url,
+                }
+            ],
+            "proxy",
+            "br",
+        )[0]
+        self.assertEqual(entry["compression"], "br")
+        self.assertEqual(entry["download_filename"], "master_jp.db.br")
+        self.assertEqual(entry["urls"]["github"], br_url)
+        self.assertEqual(entry["url"], API.GITHUB_PROXY + br_url)
+
+    def test_api_omits_versions_without_requested_brotli_asset(self):
+        entries = API.add_download_urls(
+            [{"region": "jp", "version": "1", "url": "database.db"}],
+            "github",
+            "br",
+        )
+        self.assertEqual(entries, [])
+
     def test_cn_download_redirect_uses_proxy(self):
         github_url = (
             "https://github.com/owner/repo/releases/download/database-jp-1/"
@@ -75,6 +107,41 @@ class DatabaseApiTests(unittest.TestCase):
         self.assertEqual(statuses, [302])
         self.assertEqual(headers["Location"], API.GITHUB_PROXY + github_url)
         self.assertEqual(headers["Vary"], "X-Vercel-IP-Country")
+
+    def test_brotli_download_redirects_to_compressed_asset(self):
+        github_url = (
+            "https://github.com/owner/repo/releases/download/database-jp-1/"
+            "master_jp.db"
+        )
+        br_url = github_url + ".br"
+        request = object.__new__(API.handler)
+        request.path = "/api/databases?region=jp&compression=br&download=1"
+        request.headers = {"x-vercel-ip-country": "US"}
+        statuses = []
+        headers = {}
+        request.send_response = statuses.append
+        request.send_header = headers.__setitem__
+        request.end_headers = lambda: None
+
+        with patch.object(
+            API,
+            "load_history",
+            return_value={
+                "entries": [
+                    {
+                        "region": "jp",
+                        "version": "1",
+                        "filename": "master_jp.db",
+                        "url": github_url,
+                        "br_url": br_url,
+                    }
+                ]
+            },
+        ):
+            request.do_GET()
+
+        self.assertEqual(statuses, [302])
+        self.assertEqual(headers["Location"], br_url)
 
 
 if __name__ == "__main__":

@@ -15,6 +15,7 @@ API 地址：[`https://priconne-database.vercel.app/api/databases`](https://pric
 | `region` | `cn`、`tw`、`jp` | 只返回指定区服 |
 | `version` | 数据库版本号 | 只返回指定版本 |
 | `source` | `auto`、`github`、`proxy` | 下载来源；`auto` 会对中国大陆请求使用代理地址 |
+| `compression` | `none`、`br` | 下载格式；`none` 为原始 `.db`，`br` 为 Brotli 压缩的 `.db.br` |
 | `download` | `1`、`true`、`yes` | 直接 302 跳转到选中的数据库资产 |
 
 示例：
@@ -23,9 +24,11 @@ API 地址：[`https://priconne-database.vercel.app/api/databases`](https://pric
 https://priconne-database.vercel.app/api/databases?region=jp
 https://priconne-database.vercel.app/api/databases?region=tw&download=1
 https://priconne-database.vercel.app/api/databases?region=cn&source=github
+https://priconne-database.vercel.app/api/databases?region=jp&compression=br
+https://priconne-database.vercel.app/api/databases?region=jp&compression=br&download=1
 ```
 
-API 返回最新版本和历史版本的 Release 地址、文件名与 SHA-256。提供 Brotli 压缩资产的版本还会返回可选字段 `br_url`；`download=1` 仍然下载未压缩的 `.db`，下载压缩文件时请读取 JSON 响应中的 `br_url`。响应缓存时间为 5 分钟。
+API 返回最新版本和历史版本的 Release 地址、文件名与 SHA-256。提供 Brotli 压缩资产的版本还会返回可选字段 `br_url`。不传 `compression` 时，`download=1` 下载原始 `.db`；指定 `compression=br` 后，响应中的 `url`、`urls` 和 `download_filename` 会指向 `.db.br`，与 `download=1` 组合即可直接下载压缩文件。没有 Brotli 资产的旧版本不会出现在 `compression=br` 的结果中。响应缓存时间为 5 分钟。
 
 ## Releases
 
@@ -49,18 +52,14 @@ Release 标签格式为 `database-<区服>-<版本>`。未压缩数据库文件�
 
 ## 下载 Brotli 压缩数据库
 
-最新版本提供体积更小的 `.db.br`。以下 PowerShell 示例通过 API 获取日服最新条目、下载压缩文件、使用 `brotli` 命令行工具解压，并校验解压后数据库的 SHA-256：
+最新版本提供体积更小的 `.db.br`。以下 PowerShell 示例通过 API 获取日服最新 Brotli 条目、下载压缩文件、使用 `brotli` 命令行工具解压，并校验解压后数据库的 SHA-256：
 
 ```powershell
 $entry = (Invoke-RestMethod `
-  "https://priconne-database.vercel.app/api/databases?region=jp").latest.jp
+  "https://priconne-database.vercel.app/api/databases?region=jp&compression=br").latest.jp
 
-if (-not $entry.br_url) {
-  throw "该版本没有 Brotli 压缩资产，请改用 url 下载原始数据库"
-}
-
-$compressed = "$($entry.filename).br"
-Invoke-WebRequest -Uri $entry.br_url -OutFile $compressed
+$compressed = $entry.download_filename
+Invoke-WebRequest -Uri $entry.url -OutFile $compressed
 brotli --decompress --output $entry.filename $compressed
 
 $actual = (Get-FileHash -Algorithm SHA256 $entry.filename).Hash.ToLowerInvariant()

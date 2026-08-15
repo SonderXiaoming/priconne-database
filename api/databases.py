@@ -11,6 +11,7 @@ from urllib.parse import parse_qs, urlparse
 HISTORY_PATH = Path(__file__).parents[1] / "data" / "history.json"
 VALID_REGIONS = {"cn", "tw", "jp"}
 VALID_SOURCES = {"auto", "proxy", "github"}
+VALID_COMPRESSIONS = {"none", "br"}
 GITHUB_PROXY = "https://gh.rem.asia/"
 
 
@@ -50,15 +51,24 @@ def github_proxy_url(url: str) -> str:
     return url
 
 
-def add_download_urls(entries: list[dict], source: str) -> list[dict]:
+def add_download_urls(
+    entries: list[dict], source: str, compression: str = "none"
+) -> list[dict]:
     result: list[dict] = []
     for entry in entries:
-        github_url = entry["url"]
+        github_url = entry.get("br_url") if compression == "br" else entry["url"]
+        if not github_url:
+            continue
         proxy_url = github_proxy_url(github_url)
         value = dict(entry)
         value["source"] = source
+        value["compression"] = compression
         value["urls"] = {"github": github_url, "proxy": proxy_url}
         value["url"] = value["urls"][source]
+        if value.get("filename"):
+            value["download_filename"] = value["filename"] + (
+                ".br" if compression == "br" else ""
+            )
         result.append(value)
     return result
 
@@ -81,11 +91,15 @@ class handler(BaseHTTPRequestHandler):
         version = query.get("version", [None])[0]
         download = query.get("download", ["0"])[0].lower() in {"1", "true", "yes"}
         requested_source = query.get("source", ["auto"])[0].lower()
+        compression = query.get("compression", ["none"])[0].lower()
         if region and region not in VALID_REGIONS:
             self.send_json(400, {"error": "region must be cn, tw, or jp"})
             return
         if requested_source not in VALID_SOURCES:
             self.send_json(400, {"error": "source must be auto, proxy, or github"})
+            return
+        if compression not in VALID_COMPRESSIONS:
+            self.send_json(400, {"error": "compression must be none or br"})
             return
 
         history = load_history()
@@ -94,11 +108,13 @@ class handler(BaseHTTPRequestHandler):
             entries = [entry for entry in entries if str(entry["version"]) == version]
         country = self.headers.get("x-vercel-ip-country", "")
         source = select_download_source(requested_source, country)
-        entries = add_download_urls(entries, source)
+        entries = add_download_urls(entries, source, compression)
         selected = entries[0] if entries else None
         if download:
             if selected is None:
-                self.send_json(404, {"error": "database version not found"})
+                self.send_json(
+                    404, {"error": "database version or compression not found"}
+                )
                 return
             self.send_response(302)
             self.send_header("Location", selected["url"])
@@ -112,6 +128,7 @@ class handler(BaseHTTPRequestHandler):
             {
                 "repository": history.get("repository"),
                 "download_source": source,
+                "compression": compression,
                 "latest": latest_by_region(entries),
                 "history": entries,
             },
