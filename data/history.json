@@ -92,6 +92,16 @@
       "tag": "database-tw-600015",
       "url": "https://github.com/SonderXiaoming/priconne-database/releases/download/database-tw-600015/master_tw_unhash_600015_2026-08-12.db",
       "version": "600015"
+    },
+    {
+      "br_url": "https://github.com/SonderXiaoming/priconne-database/releases/download/database-tw-600016/master_tw_unhash_600016_2026-08-16.db.br",
+      "date": "2026-08-16",
+      "filename": "master_tw_unhash_600016_2026-08-16.db",
+      "region": "tw",
+      "sha256": "0660cab8beac14aeeabf6fe30449d5210a27a134766d1cc2a87daae59b789149",
+      "tag": "database-tw-600016",
+      "url": "https://github.com/SonderXiaoming/priconne-database/releases/download/database-tw-600016/master_tw_unhash_600016_2026-08-16.db",
+      "version": "600016"
     }
   ],
   "format": 1,
