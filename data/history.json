@@ -30,6 +30,16 @@
       "version": "202608171854"
     },
     {
+      "br_url": "https://github.com/SonderXiaoming/priconne-database/releases/download/database-cn-202608281041/master_cn_unhash_202608281041_2026-08-31.db.br",
+      "date": "2026-08-31",
+      "filename": "master_cn_unhash_202608281041_2026-08-31.db",
+      "region": "cn",
+      "sha256": "f15bcad5cda240ee8c427d9f8814be04313956b078a32672c96beda0831efbdc",
+      "tag": "database-cn-202608281041",
+      "url": "https://github.com/SonderXiaoming/priconne-database/releases/download/database-cn-202608281041/master_cn_unhash_202608281041_2026-08-31.db",
+      "version": "202608281041"
+    },
+    {
       "date": "2026-08-06",
       "filename": "master_jp_unhash_10070110_2026-08-06.db",
       "region": "jp",
@@ -95,6 +105,16 @@
       "tag": "database-jp-10070500",
       "url": "https://github.com/SonderXiaoming/priconne-database/releases/download/database-jp-10070500/master_jp_unhash_10070500_2026-08-27.db",
       "version": "10070500"
+    },
+    {
+      "br_url": "https://github.com/SonderXiaoming/priconne-database/releases/download/database-jp-10070600/master_jp_unhash_10070600_2026-08-31.db.br",
+      "date": "2026-08-31",
+      "filename": "master_jp_unhash_10070600_2026-08-31.db",
+      "region": "jp",
+      "sha256": "443cfc656182cd983447b99f5553f7b0ee76126b9c54a21777d4765a4f240418",
+      "tag": "database-jp-10070600",
+      "url": "https://github.com/SonderXiaoming/priconne-database/releases/download/database-jp-10070600/master_jp_unhash_10070600_2026-08-31.db",
+      "version": "10070600"
     },
     {
       "date": "2026-08-06",
