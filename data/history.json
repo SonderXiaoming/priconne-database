@@ -60,6 +60,16 @@
       "version": "202609021440"
     },
     {
+      "br_url": "https://github.com/SonderXiaoming/priconne-database/releases/download/database-cn-202609081902/master_cn_unhash_202609081902_2026-09-08.db.br",
+      "date": "2026-09-08",
+      "filename": "master_cn_unhash_202609081902_2026-09-08.db",
+      "region": "cn",
+      "sha256": "5c54c3e068d5f9f358f2e0a8f241bd043f021e3fb33bcafb627c7411c5cf246d",
+      "tag": "database-cn-202609081902",
+      "url": "https://github.com/SonderXiaoming/priconne-database/releases/download/database-cn-202609081902/master_cn_unhash_202609081902_2026-09-08.db",
+      "version": "202609081902"
+    },
+    {
       "date": "2026-08-06",
       "filename": "master_jp_unhash_10070110_2026-08-06.db",
       "region": "jp",
