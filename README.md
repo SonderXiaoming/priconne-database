@@ -1,46 +1,45 @@
 # Priconne Database API & Releases
 
-本仓库公开提供《超异域公主连结☆Re:Dive》国服、台服与日服的可读 SQLite 数据库 Release，以及用于查询版本和获取下载地址的轻量 API。
-
-数据库可用于个人学习、资料研究、数据分析和开发交流。数据库生成、下载、解密、名称恢复、彩虹表及自动化生产代码不在本公开仓库中提供。
+[pcr.cialloworld.com](https://pcr.cialloworld.com) 是本项目的主要对外地址，提供《超异域公主连结☆Re:Dive》国服、台服和日服的 SQLite 数据库查询和下载。也可以在 [GitHub Releases](https://github.com/SonderXiaoming/priconne-database/releases) 找到数据库文件。
 
 ## API
 
-API 地址：[`https://priconne-database.vercel.app/api/databases`](https://priconne-database.vercel.app/api/databases)
-
-常用参数：
+用 GET 请求 [`https://pcr.cialloworld.com/api/databases`](https://pcr.cialloworld.com/api/databases) 查询数据库。默认返回三个区服的 JSON。`latest` 按区服列出符合条件的最新条目，`history` 列出所有匹配的版本。例如，日服最新版本的下载地址是 `latest.jp.url`。
 
 | 参数 | 可选值 | 说明 |
 | --- | --- | --- |
 | `region` | `cn`、`tw`、`jp` | 只返回指定区服 |
 | `version` | 数据库版本号 | 只返回指定版本 |
-| `source` | `auto`、`github`、`proxy` | 下载来源；`auto` 会对中国大陆请求使用代理地址 |
-| `compression` | `none`、`br` | 下载格式；`none` 为原始 `.db`，`br` 为 Brotli 压缩的 `.db.br` |
+| `source` | `auto`、`github`、`proxy` | 默认 `auto`，中国大陆请求使用代理。也可以手动指定 GitHub 或代理 |
+| `compression` | `none`、`br` | 默认返回原始 `.db` 的下载信息。`br` 对应 Brotli 压缩的 `.db.br` |
 | `download` | `1`、`true`、`yes` | 直接 302 跳转到选中的数据库资产 |
 
-示例：
+### 常用链接
 
-```text
-https://priconne-database.vercel.app/api/databases?region=jp
-https://priconne-database.vercel.app/api/databases?region=tw&download=1
-https://priconne-database.vercel.app/api/databases?region=cn&source=github
-https://priconne-database.vercel.app/api/databases?region=jp&compression=br
-https://priconne-database.vercel.app/api/databases?region=jp&compression=br&download=1
-```
+- [查日服最新和历史版本](https://pcr.cialloworld.com/api/databases?region=jp)
+- [查日服指定版本 `10070300`](https://pcr.cialloworld.com/api/databases?region=jp&version=10070300)
+- 查国服下载地址，可指定 [GitHub](https://pcr.cialloworld.com/api/databases?region=cn&source=github) 或 [代理](https://pcr.cialloworld.com/api/databases?region=cn&source=proxy)
+- [查日服 Brotli 下载地址](https://pcr.cialloworld.com/api/databases?region=jp&compression=br)
+- [直接下载台服 `.db`](https://pcr.cialloworld.com/api/databases?region=tw&download=1)
+- [直接下载日服 `.db.br`](https://pcr.cialloworld.com/api/databases?region=jp&compression=br&download=1)
 
-API 返回最新版本和历史版本的 Release 地址、文件名与 SHA-256。提供 Brotli 压缩资产的版本还会返回可选字段 `br_url`。不传 `compression` 时，`download=1` 下载原始 `.db`；指定 `compression=br` 后，响应中的 `url`、`urls` 和 `download_filename` 会指向 `.db.br`，与 `download=1` 组合即可直接下载压缩文件。没有 Brotli 资产的旧版本不会出现在 `compression=br` 的结果中。响应缓存时间为 5 分钟。
+查询结果包含下载地址、文件名和原始 `.db` 的 SHA-256。有 Brotli 文件的版本也会提供 `br_url`。指定 `compression=br` 后，结果只列出有压缩文件的版本，`url`、`urls` 和 `download_filename` 都对应 `.db.br`。
+
+查询响应缓存 5 分钟。加上 `download=1` 会跳转到文件，默认是 `.db`，搭配 `compression=br` 则跳转到 `.db.br`。
+
+同一个 API 也可以通过 [Vercel 域名](https://priconne-database.vercel.app/api/databases) 访问。
 
 ## Releases
 
-也可以直接从 [GitHub Releases](https://github.com/SonderXiaoming/priconne-database/releases) 下载数据库。
+进入对应版本的 Release，在下载列表里选 `.db` 或 `.db.br`。下面是三个区服的下载示例，最新版本可通过上面的 API 查询。
 
-| 区服 | 当前版本 | Release |
+| 区服 | 版本示例 | Release |
 | --- | --- | --- |
 | 国服 | `202608131846` | [`database-cn-202608131846`](https://github.com/SonderXiaoming/priconne-database/releases/tag/database-cn-202608131846) |
 | 台服 | `600015` | [`database-tw-600015`](https://github.com/SonderXiaoming/priconne-database/releases/tag/database-tw-600015) |
 | 日服 | `10070300` | [`database-jp-10070300`](https://github.com/SonderXiaoming/priconne-database/releases/tag/database-jp-10070300) |
 
-使用 GitHub CLI 下载示例：
+例如，用 GitHub CLI 下载上表里的日服压缩包。
 
 ```powershell
 gh release download database-jp-10070300 `
@@ -48,15 +47,15 @@ gh release download database-jp-10070300 `
   --pattern "*.db.br"
 ```
 
-Release 标签格式为 `database-<区服>-<版本>`。未压缩数据库文件名格式为 `master_<区服>_unhash_<版本>_<归档日期>.db`，Brotli 压缩文件会在其后追加 `.br`。Release 同时附带 `SHA256SUMS`。
+Release 标签形如 `database-<区服>-<版本>`。数据库文件名形如 `master_<区服>_unhash_<版本>_<归档日期>.db`，压缩版会在文件名末尾加上 `.br`。每个 Release 都附有 `SHA256SUMS`。
 
 ## 下载 Brotli 压缩数据库
 
-最新版本提供体积更小的 `.db.br`。以下 PowerShell 示例通过 API 获取日服最新 Brotli 条目、下载压缩文件、使用 `brotli` 命令行工具解压，并校验解压后数据库的 SHA-256：
+如果下载的是 `.db.br`，先用 `brotli` 解压，再校验 `.db` 文件的 SHA-256。下面的 PowerShell 示例会获取 API 返回的最新日服 Brotli 条目并完成这些步骤。
 
 ```powershell
 $entry = (Invoke-RestMethod `
-  "https://priconne-database.vercel.app/api/databases?region=jp&compression=br").latest.jp
+  "https://pcr.cialloworld.com/api/databases?region=jp&compression=br").latest.jp
 
 $compressed = $entry.download_filename
 Invoke-WebRequest -Uri $entry.url -OutFile $compressed
@@ -68,9 +67,9 @@ if ($actual -ne $entry.sha256) {
 }
 ```
 
-`br_url` 是可选字段，早期 Release 可能只有 `url`。`sha256` 始终对应解压后的 `.db` 文件，不是 `.db.br`；因此应先解压，再进行校验。
+早期 Release 可能只提供原始 `.db`，下载地址可从 `url` 获取。
 
-## 当前历史资产校验
+## 历史版本的 SHA-256
 
 | Release | 文件 | SHA-256 |
 | --- | --- | --- |
@@ -85,7 +84,7 @@ if ($actual -ne $entry.sha256) {
 | `database-tw-600013` | `master_tw_unhash_600013_2026-08-11.db` | `34726a5d7d36b009d14fdb4ff2a250cc51110b537230ad7d02a3022bd3d6f03f` |
 | `database-tw-600015` | `master_tw_unhash_600015_2026-08-12.db` | `b3a995a197d466d5d9eb9244c1f8320f4723beceda666750b04bbe802845d473` |
 
-PowerShell 校验示例：
+例如，在 PowerShell 里计算数据库文件的 SHA-256。
 
 ```powershell
 Get-FileHash -Algorithm SHA256 .\master_jp_unhash_10070300_2026-08-15.db
@@ -93,8 +92,8 @@ Get-FileHash -Algorithm SHA256 .\master_jp_unhash_10070300_2026-08-15.db
 
 ## 使用说明
 
-数据库使用 SQLite 格式，可用 SQLite、Python、DataGrip、DBeaver 等工具读取。游戏更新可能增加、删除或调整表结构；未能可靠识别的名称不会猜测重命名。
+下载后的 `.db` 可以用 Python 的 `sqlite3`、DataGrip 或 DBeaver 打开。游戏更新可能会调整表结构，暂时无法确认的表名和字段名会保留原样。
 
-公开 Git 分支不保存数据库文件和数据库生产工具，只保存 API、Release 索引及说明文档。请避免高频重复请求 API 或 Release 下载地址。
+仓库里保存 API、Release 索引和说明。用脚本查询时，建议缓存结果，避免频繁重复请求。
 
-游戏、数据库内容、角色、商标及其他相关素材的权利归原权利人所有。本仓库不隶属于或代表游戏运营方；内容仅用于个人学习、研究与资料保存，请勿用于商业用途。
+这是独立维护的资料库，内容仅供个人学习、研究和资料保存，请勿用于商业用途。游戏、数据库内容、角色、商标及其他相关素材的权利归原权利人所有。
